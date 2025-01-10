@@ -58,7 +58,7 @@
     "nodemon": "^3.1.9",
     "selenium-webdriver": "^2.53.2",
     "should": "^13.2.3",
-    "zaproxy": "^0.2.0"
+    "zaproxy": "^1.0.1"
   },
   "repository": "https://github.com/OWASP/NodejsGoat",
   "license": "Apache 2.0"
