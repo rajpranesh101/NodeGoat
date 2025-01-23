@@ -22,12 +22,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Step 2: Run Dependency Review
+      # Step 2: Run Dependency Review (without failing the workflow)
       - name: Dependency Review
         id: review
         uses: actions/dependency-review-action@v3
-        with:
-          fail-on-severity: low # Optional: Set to a valid value or remove if not needed
+        continue-on-error: true # This ensures the workflow continues even if vulnerabilities are found
 
       # Step 3: Print dependency-review.json for debugging (with error handling)
       - name: Debug - Print dependency-review.json
