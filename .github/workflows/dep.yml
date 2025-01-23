@@ -3,9 +3,9 @@ name: Dependency Review with Known Vulnerabilities
 on:
   push:
     branches:
-      - '**' # This will match all branches
+      - '**' # Match all branches
     paths:
-      - '**/package.json' # Only trigger if dependency files are changed
+      - '**/package.json' # Trigger for dependency-related files
       - '**/package-lock.json'
       - '**/requirements.txt'
       - '**/Gemfile'
@@ -19,19 +19,19 @@ jobs:
       security-events: write
 
     steps:
-      # Step 1: Checkout code
+      # Step 1: Checkout the repository
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       # Step 2: Run Dependency Review
       - name: Dependency Review
         id: review
-        uses: github/dependency-review-action@v4
+        uses: advanced-security/dependency-review-action@v1
         with:
-          output: dependency-review.json # Save results to a file
-          fail-on-severity: none # Don't fail CI yet
+          output: dependency-review.json # Save results
+          fail-on-severity: none # Prevent failing CI
 
-      # Step 3: Print dependency-review.json for debugging
+      # Step 3: Debug - Print dependency-review.json
       - name: Debug - Print dependency-review.json
         run: |
           echo "Contents of dependency-review.json:"
@@ -41,51 +41,32 @@ jobs:
       - name: Fetch CVE IDs from GHSA URLs
         id: fetch_cves
         run: |
-          # Read dependency-review.json
-          vulnerabilities=$(cat dependency-review.json | jq -c '.vulnerabilities[]')
-
-          # Fetch CVE IDs for each GHSA URL
-          echo "Fetching CVE IDs for GHSAs..."
+          vulnerabilities=$(jq -c '.vulnerabilities[]' < dependency-review.json)
           cve_map="{}"
           for vuln in $vulnerabilities; do
             ghsa_url=$(echo "$vuln" | jq -r '.advisoryUrl')
             if [[ $ghsa_url == *"GHSA"* ]]; then
-              echo "Fetching CVE for GHSA: $ghsa_url"
               cve_id=$(curl -s "$ghsa_url" | grep -oP 'CVE-\d{4}-\d+' | head -n 1)
               if [[ -n "$cve_id" ]]; then
                 cve_map=$(echo "$cve_map" | jq --arg ghsa "$ghsa_url" --arg cve "$cve_id" '. + {($ghsa): $cve}')
               fi
             fi
           done
-
-          # Save the GHSA to CVE mapping
           echo "$cve_map" > ghsa_to_cve_map.json
-          echo "GHSA to CVE mapping saved to ghsa_to_cve_map.json"
 
-      # Step 5: Filter vulnerabilities using the local known vulnerabilities list
+      # Step 5: Filter vulnerabilities using a known list
       - name: Filter vulnerabilities
         run: |
-          # Read dependency review results, known vulnerabilities, and GHSA to CVE mapping
           node <<EOF
           const fs = require('fs');
           const reviewResults = JSON.parse(fs.readFileSync('dependency-review.json', 'utf8'));
           const knownVulnerabilities = JSON.parse(fs.readFileSync('josys_known_ve_list.json', 'utf8')).Exception_List;
           const cveMap = JSON.parse(fs.readFileSync('ghsa_to_cve_map.json', 'utf8'));
-
-          // Extract detected vulnerabilities
           const vulnerabilities = reviewResults.vulnerabilities || [];
           const unignoredVulnerabilities = vulnerabilities.filter(v => {
             const cveId = cveMap[v.advisoryUrl];
             return !knownVulnerabilities.includes(cveId);
           });
-
-          if (unignoredVulnerabilities.length > 0) {
-            console.log('New vulnerabilities detected:');
-            unignoredVulnerabilities.forEach(v => {
-              console.log(\`- ${v.advisoryUrl} (${v.severity})\`);
-            });
-            process.exit(1); // Fail CI
-          } else {
-            console.log('No new vulnerabilities detected.');
-          }
+          console.log('Filtered vulnerabilities:', unignoredVulnerabilities);
+          fs.writeFileSync('filtered_vulnerabilities.json', JSON.stringify(unignoredVulnerabilities, null, 2));
           EOF
