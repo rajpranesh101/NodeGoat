@@ -21,14 +21,12 @@ jobs:
     steps:
       # Step 1: Checkout code
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Step 2: Run Dependency Review
       - name: Dependency Review
         id: review
-        uses: actions/dependency-review-action@v3
-        with:
-          fail-on-severity: none # Don't fail CI yet
+        uses: actions/dependency-review-action@v4
 
       # Step 3: Print dependency-review.json for debugging
       - name: Debug - Print dependency-review.json
